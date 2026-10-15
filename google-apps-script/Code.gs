@@ -47,7 +47,13 @@ var EQUIPE_DE_DEPART = [
 
 /** Ouvrir l'URL /exec dans un navigateur affiche ce message : pratique pour vérifier que tout marche. */
 function doGet() {
+  installerSiBesoin_();
   return json_({ ok: true, message: 'Serveur de pointage Il Maestro opérationnel.' });
+}
+
+/** Au premier appel, crée les onglets et l'équipe si ce n'est pas déjà fait. */
+function installerSiBesoin_() {
+  if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TABLES.salaries.feuille)) installer();
 }
 
 /** Le site envoie { fonction: 'api' | 'exporterGoogleSheet', args: [...] }. */
@@ -71,6 +77,7 @@ function api(nom, args) {
   var verrou = LockService.getScriptLock();
   verrou.waitLock(20000);
   try {
+    installerSiBesoin_();
     var db = lire_();
     var avant = empreintes_(db);
     var resultat = Core.executer(db, maintenant_(), nom, args);
