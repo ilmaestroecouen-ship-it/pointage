@@ -1,54 +1,85 @@
-# Il Maestro : pointage du personnel
+# Il Maestro — Pointage du personnel
 
-## Guide d'installation (environ 15 minutes, à faire une seule fois)
+## Comment ça marche
 
-Il vous faut un **ordinateur** (pour l'installation), le **compte Google du restaurant** et l'**iPad**.
+- **Le site** (les écrans de l'iPad et l'espace gérant) est hébergé gratuitement sur **GitHub Pages**.
+- **Les données** (pointages, salariés, messages) sont enregistrées dans un **Google Sheet** du restaurant, grâce à un petit programme Google (Apps Script).
+- Le fichier `config.js` fait le lien entre les deux : il contient l'adresse du programme Google.
 
-Les données (pointages, messages, salariés) sont enregistrées dans un **Google Sheet** qui appartient au restaurant. Elles restent consultables à tout moment depuis Google Drive.
+```
+iPad / téléphone  →  site GitHub Pages  →  programme Google  →  Google Sheet
+```
+
+Tant que `config.js` est vide, le site fonctionne en **mode démo** (fausses données, codes 1111 à 8888, mot de passe `maestro`).
 
 ---
 
-### Étape 1 : créer le Google Sheet
+## Installation (≈ 15 minutes, une seule fois)
 
-1. Allez sur **sheets.google.com**, connecté avec le compte Google du restaurant.
-2. Créez une **feuille vierge** et nommez-la `Il Maestro – Pointage`.
+### Étape 1 — Mettre le site sur GitHub
 
-### Étape 2 : coller le programme
+À la **racine** du repository, il faut ces fichiers (en remplaçant les anciens) :
 
-1. Dans le Google Sheet, ouvrez le menu **Extensions → Apps Script**. Un nouvel onglet s'ouvre.
-2. Le fichier `Code.gs` est déjà ouvert : **effacez tout** son contenu, puis collez le contenu du fichier `google-apps-script/Code.gs`.
-3. À gauche, à côté de « Fichiers », cliquez sur **+ → Script**, nommez-le `Core` et collez le contenu de `google-apps-script/Core.gs`.
-4. Cliquez sur **+ → HTML**, nommez-le `Index` (exactement, avec un I majuscule) et collez le contenu de `google-apps-script/Index.html`.
-5. Cliquez sur l'icône **Enregistrer** (la disquette).
+```
+index.html
+config.js
+icone.png
+demo/core.js
+demo/demo.js
+google-apps-script/   (copie de sauvegarde du programme Google, pas utilisé par le site)
+GUIDE-INSTALLATION.md
+```
 
-### Étape 3 : installer
+Supprimez l'ancien `demo.html` s'il y est encore. Dans **Settings → Pages**, la source doit être la branche `main`, dossier `/ (root)`.
+L'adresse du site est alors : `https://VOTRE-COMPTE.github.io/NOM-DU-REPOSITORY/`
 
-1. En haut, dans la liste des fonctions, choisissez **installer**, puis cliquez sur **Exécuter**.
-2. Google demande une autorisation : **Examiner les autorisations**, puis choisissez le compte du restaurant.
-3. Si Google affiche « Google n'a pas validé cette application », c'est normal (c'est votre propre programme). Cliquez sur **Paramètres avancés**, puis **Accéder à … (non sécurisé)**, puis **Autoriser**.
-4. Revenez sur le Google Sheet. Vous y trouvez les onglets **Salariés, Pointages, Absences, Messages et Réglages**, avec 8 salariés créés et un code chacun.
+### Étape 2 — Créer le Google Sheet
 
-### Étape 4 : mettre l'application en ligne
+1. Allez sur **sheets.google.com** avec le compte Google du restaurant.
+2. Créez une **feuille vierge**, nommez-la `Il Maestro – Pointage`.
 
-1. Dans Apps Script, cliquez sur **Déployer → Nouveau déploiement**.
-2. Cliquez sur la roue dentée ⚙ à côté de « Sélectionner le type » et choisissez **Application Web**.
-3. Réglez les champs ainsi :
-   - Description : `Pointage`
-   - Exécuter en tant que : **Moi**
-   - Qui a accès : **Tout le monde**
-4. Cliquez sur **Déployer** et **copiez l'URL de l'application Web** (elle se termine par `/exec`).
+### Étape 3 — Coller le programme Google
 
-### Étape 5 : installer sur l'iPad
+1. Dans le Google Sheet : menu **Extensions → Apps Script**.
+2. Dans le fichier `Code.gs` déjà ouvert : **effacez tout**, collez le contenu de `google-apps-script/Code.gs`.
+3. À gauche, **+ → Script**, nommez-le `Core`, collez le contenu de `google-apps-script/Core.gs`.
+4. Cliquez sur **Enregistrer** (icône disquette).
 
-1. Sur l'iPad, ouvrez **Safari** et collez l'URL.
-2. Appuyez sur le bouton **Partager** ⬆️, puis **Sur l'écran d'accueil**. L'icône « Il Maestro » apparaît sur l'iPad comme une application.
-3. *Conseil* : pour que l'iPad reste bloqué sur le pointage, activez **Réglages → Accessibilité → Accès guidé**, puis lancez-le dans l'application avec un triple-clic sur le bouton latéral.
+### Étape 4 — Installer
 
-### Étape 6 : premiers réglages (dans l'application)
+1. En haut, choisissez la fonction **installer** dans la liste, puis **Exécuter**.
+2. Google demande une autorisation : **Examiner les autorisations** → choisissez le compte du restaurant.
+3. Si « Google n'a pas validé cette application » s'affiche : c'est normal (c'est votre propre programme). Cliquez **Paramètres avancés** → **Accéder à … (non sécurisé)** → **Autoriser**.
+4. Revenez sur le Google Sheet : les onglets **Salariés, Pointages, Absences, Messages, Réglages** sont créés, avec 8 salariés et leurs codes.
 
-1. Appuyez sur **Espace gérant** en bas de l'écran. Le mot de passe de départ est **`maestro`**.
-2. Dans **Réglages**, **changez le mot de passe** tout de suite.
-3. Dans **Salariés**, remplacez « Salarié 1 », « Salarié 2 », etc. par les vrais prénoms. Ajustez le contrat (35 h, 39 h…) et donnez à chacun **son code**, qu'il doit garder pour lui.
+### Étape 5 — Mettre le programme Google en ligne
+
+1. Dans Apps Script : **Déployer → Nouveau déploiement**.
+2. Roue dentée ⚙ à côté de « Sélectionner le type » → **Application Web**.
+3. Exécuter en tant que : **Moi** · Qui a accès : **Tout le monde**.
+4. **Déployer**, puis **copiez l'URL de l'application Web** (elle se termine par `/exec`).
+5. Vérification : ouvrez cette URL dans un navigateur, vous devez voir `"Serveur de pointage Il Maestro opérationnel."`
+
+### Étape 6 — Relier le site au Google Sheet
+
+1. Sur GitHub, ouvrez le fichier **`config.js`** → icône crayon ✏️ (modifier).
+2. Collez l'URL entre les guillemets :
+   ```js
+   window.POINTAGE_SERVEUR = 'https://script.google.com/macros/s/……/exec';
+   ```
+3. **Commit changes**. Attendez 1 à 2 minutes, puis rechargez le site : le cadre « Démo » en bas à gauche a disparu, c'est la vraie version.
+
+### Étape 7 — Installer sur l'iPad
+
+1. Sur l'iPad, ouvrez **Safari** à l'adresse du site GitHub Pages.
+2. Bouton **Partager** ⬆️ → **Sur l'écran d'accueil**. L'icône « Il Maestro » apparaît comme une application.
+3. *Conseil* : pour bloquer l'iPad sur le pointage, activez **Réglages → Accessibilité → Accès guidé**, puis triple-clic sur le bouton latéral dans l'application.
+
+### Étape 8 — Premiers réglages (dans l'application)
+
+1. **Espace gérant** (en bas de l'écran) → mot de passe de départ : **`maestro`**.
+2. **Réglages** → **changez le mot de passe tout de suite**.
+3. **Salariés** → remplacez « Salarié 1, 2… » par les vrais prénoms, ajustez le contrat (35 h, 39 h…) et donnez à chacun **son code** (confidentiel).
 
 C'est prêt ✅
 
@@ -56,57 +87,42 @@ C'est prêt ✅
 
 ## Utilisation au quotidien
 
-### Les salariés, sur l'iPad
+### Les salariés (sur l'iPad)
 1. Ils tapent **leur code à 4 chiffres**.
-2. Ils appuient sur **Arrivée** le matin, puis sur **Fin de service** quand ils partent.
-3. En cas d'erreur, ils appuient sur **Signaler une erreur** et écrivent un message au gérant.
-
-Ils peuvent pointer plusieurs fois par jour, par exemple le midi puis le soir.
+2. Ils appuient sur **Arrivée** le matin, **Fin de service** quand ils partent (plusieurs fois par jour possible : midi et soir).
+3. En cas d'erreur : **Signaler une erreur** → ils écrivent un message au gérant.
 
 ### Les règles automatiques
 | Situation | Ce que fait l'application |
 |---|---|
 | Pas de pointage un jour d'ouverture | Le salarié est compté **absent** |
-| Arrivée pointée le matin, pas de fin de service | Départ mis **à 14h** et marqué « Sortie auto 14h ». Le salarié doit vous donner sa vraie heure de départ |
-| Arrivée pointée le soir, pas de fin de service | 0 h comptée, marqué « Oubli de sortie », à corriger |
+| Arrivée le matin, pas de fin de service | Départ mis **à 14h**, marqué « Sortie auto 14h » — le salarié doit vous donner sa vraie heure |
+| Arrivée le soir, pas de fin de service | 0 h comptée, marqué « Oubli de sortie » — à corriger |
 | Lundi | Restaurant fermé : personne n'est compté absent |
 
-### Le gérant (Espace gérant, sur l'iPad, un téléphone ou un ordinateur, avec la même URL)
-- **Aujourd'hui** : qui est en service, qui est parti, qui est absent.
-- **Heures** : choix **Jour / Semaine / Mois** et flèches ‹ › pour changer de période.
-  - Touchez un salarié pour voir le détail jour par jour.
+### Le gérant (Espace gérant — sur l'iPad, un téléphone ou un ordinateur, même adresse)
+- **Aujourd'hui** : qui est en service, parti, absent.
+- **Heures** : choisissez **Jour / Semaine / Mois** et les flèches ‹ › pour changer de période.
+  - Touchez un salarié pour le détail jour par jour.
   - Touchez un horaire pour le **corriger**, ou **+** pour ajouter un pointage oublié.
-  - Pour un jour non travaillé, choisissez **Repos / Congé payé / Maladie / Absence justifiée**.
-- **Exporter Excel** : télécharge un fichier pour la période affichée, avec 3 onglets :
-  - **Récapitulatif** : par salarié, heures totales, heures sup. 10 / 20 / 50 % et absences.
-  - **Par semaine**
-  - **Détail** : chaque pointage.
+  - Pour un jour non travaillé : **Repos / Congé payé / Maladie / Absence justifiée**.
+- **Exporter Excel** : fichier de la période affichée, avec 3 onglets (Récapitulatif avec heures, heures sup. 10/20/50 % et absences · Par semaine · Détail de chaque pointage). C'est le fichier à transmettre pour les **bulletins de paie**. Le bouton **Ouvrir dans Google Sheets** crée la même chose dans Google Drive.
+- **Messages** : les demandes de correction des salariés. Corrigez le pointage, puis **Traité**.
 
-  C'est le fichier à transmettre pour les **bulletins de paie**.
-- **Messages** : les demandes de correction des salariés. Corrigez le pointage, puis cliquez sur **Traité**.
+> L'espace gérant se ferme tout seul après 10 minutes sans activité.
 
-> L'espace gérant se ferme tout seul après 10 minutes sans activité, pour que les salariés ne puissent pas y accéder.
-
-### Calcul des heures supplémentaires
-Les heures sup. sont calculées **par semaine, du lundi au dimanche**, au-delà de 35 h, selon le barème de la convention HCR :
-- +10 % de la 36e à la 39e heure ;
-- +20 % de la 40e à la 43e heure ;
-- +50 % au-delà.
-
-En vue **Mois**, on compte les semaines qui **se terminent** dans le mois. La colonne « Contrat » rappelle la durée prévue au contrat. Pour un salarié à 39 h, les heures entre 36 et 39 sont donc déjà incluses dans son salaire. **À valider par la personne qui fait la paie.**
+### Heures supplémentaires
+Calculées **par semaine (lundi → dimanche)** au-delà de 35 h, barème convention HCR : +10 % de la 36e à la 39e heure, +20 % de la 40e à la 43e, +50 % au-delà. En vue **Mois**, on compte les semaines qui **se terminent** dans le mois. **À valider par la personne qui fait la paie** (notamment pour les contrats à 39 h).
 
 ---
 
 ## Bon à savoir
 
-- **Si le bouton « Exporter Excel » ne télécharge rien** (cela peut arriver dans certains navigateurs), utilisez **Ouvrir dans Google Sheets**, puis **Fichier → Télécharger → Microsoft Excel**.
-- Le bandeau gris de Google en haut de la page (« Cette application a été créée par un utilisateur de Google Apps Script ») est normal.
-- **Ne modifiez pas l'onglet « Pointages » à la main** dans le Google Sheet : passez par l'espace gérant. Les autres onglets se lisent sans problème.
-- **Gardez l'URL de l'application pour vous** : sans code, personne ne peut pointer, et sans mot de passe personne ne peut entrer dans l'espace gérant.
-- **Mettre à jour le programme plus tard** : collez les nouveaux fichiers, puis **Déployer → Gérer les déploiements → ✏️ → Version : Nouvelle version → Déployer**. L'URL ne change pas.
+- **Voir la démo même après la mise en service** : ajoutez `?demo` à la fin de l'adresse du site.
+- **Ne modifiez pas l'onglet « Pointages » à la main** dans le Google Sheet : passez par l'espace gérant.
+- **Sécurité** : l'adresse du programme Google est visible dans `config.js`, mais sans code personne ne peut pointer, et sans mot de passe personne n'entre dans l'espace gérant. D'où l'importance de **changer le mot de passe `maestro`** et de garder les codes confidentiels.
+- **Mettre à jour le programme Google plus tard** : collez les nouveaux fichiers dans Apps Script, puis **Déployer → Gérer les déploiements → ✏️ → Version : Nouvelle version → Déployer**. L'URL ne change pas, `config.js` reste bon.
 - **Côté légal** : informez les salariés par écrit de la mise en place du pointage et de son but (calcul du temps de travail et de la paie). Conservez les relevés au moins 1 an.
 
-## Essayer sans rien installer
-Ouvrez le fichier **`demo.html`** dans un navigateur. C'est une version de démonstration, avec de fausses données :
-- codes salariés 1111, 2222… jusqu'à 8888 ;
-- mot de passe gérant `maestro`.
+## Pour les développeurs
+- `google-apps-script/Core.gs` contient toutes les règles. Après une modification, lancez `node outils/copier-core.js` pour mettre à jour la démo (`demo/core.js`).

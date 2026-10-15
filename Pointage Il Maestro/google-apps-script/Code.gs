@@ -33,17 +33,30 @@ var TABLES = {
 
 var FEUILLE_REGLAGES = 'Réglages';
 
-/* ---------- Page web ---------- */
+/* ---------- API appelée par le site (GitHub Pages) ---------- */
 
+/** Ouvrir l'URL /exec dans un navigateur affiche ce message : pratique pour vérifier que tout marche. */
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Index')
-    .setTitle('Il Maestro — Pointage')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no')
-    .addMetaTag('apple-mobile-web-app-capable', 'yes')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  return json_({ ok: true, message: 'Serveur de pointage Il Maestro opérationnel.' });
 }
 
-/** Appelée par la page (google.script.run.api). */
+/** Le site envoie { fonction: 'api' | 'exporterGoogleSheet', args: [...] }. */
+function doPost(e) {
+  var AUTORISEES = { api: api, exporterGoogleSheet: exporterGoogleSheet };
+  try {
+    var demande = JSON.parse(e.postData.contents);
+    var f = AUTORISEES[demande.fonction];
+    if (!f) throw new Error('Fonction inconnue.');
+    return json_({ ok: true, resultat: f.apply(null, demande.args || []) });
+  } catch (err) {
+    return json_({ ok: false, erreur: String(err && err.message || err) });
+  }
+}
+
+function json_(objet) {
+  return ContentService.createTextOutput(JSON.stringify(objet)).setMimeType(ContentService.MimeType.JSON);
+}
+
 function api(nom, args) {
   var verrou = LockService.getScriptLock();
   verrou.waitLock(20000);
