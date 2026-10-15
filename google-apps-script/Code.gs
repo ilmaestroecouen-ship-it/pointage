@@ -12,7 +12,7 @@ var TABLES = {
   salaries: {
     feuille: 'Salariés',
     cols: ['id', 'nom', 'code', 'contrat', 'actif', 'entree'],
-    entetes: ['ID', 'Nom', 'Code (4 chiffres)', 'Heures contrat / semaine', 'Actif (oui/non)', "Date d'entrée"]
+    entetes: ['ID', 'Nom', 'Code (haché)', 'Heures contrat / semaine', 'Actif (oui/non)', "Date d'entrée"]
   },
   pointages: {
     feuille: 'Pointages',
@@ -74,6 +74,9 @@ function json_(objet) {
 }
 
 function api(nom, args) {
+  Core.definirHachage(hacher_);
+  var type = Core.typeAcces(nom);
+  verifierBlocage_(type);
   var verrou = LockService.getScriptLock();
   verrou.waitLock(20000);
   try {
@@ -83,9 +86,48 @@ function api(nom, args) {
     var resultat = Core.executer(db, maintenant_(), nom, args);
     ecrireModifications_(db, avant);
     return JSON.parse(JSON.stringify(resultat === undefined ? null : resultat));
+  } catch (e) {
+    if (e.acces) compterEchec_(e.acces);
+    throw e;
   } finally {
     verrou.releaseLock();
   }
+}
+
+/* ---------- Sécurité ---------- */
+
+var ITERATIONS_HACHAGE = 300;
+
+/**
+ * Hachage SHA-256 salé et répété : « h1$sel$empreinte ».
+ * Avec une valeur de référence, on réutilise son sel (pour vérifier une saisie).
+ */
+function hacher_(secret, reference) {
+  var sel = reference ? String(reference).split('$')[1] : Utilities.getUuid().replace(/-/g, '').slice(0, 16);
+  var empreinte = sel;
+  for (var i = 0; i < ITERATIONS_HACHAGE; i++) {
+    var octets = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, empreinte + secret, Utilities.Charset.UTF_8);
+    empreinte = octets.map(function (o) { return ('0' + (o & 0xff).toString(16)).slice(-2); }).join('');
+  }
+  return 'h1$' + sel + '$' + empreinte;
+}
+
+// Après trop d'essais ratés, on bloque quelques minutes (contre ceux qui essaient tous les codes).
+var LIMITES = {
+  code: { essais: 15, minutes: 10, message: "Trop d'essais de code. Réessaie dans 10 minutes ou préviens le gérant." },
+  mdp: { essais: 5, minutes: 15, message: "Trop d'essais de mot de passe. Réessayez dans 15 minutes." }
+};
+
+function verifierBlocage_(type) {
+  if (!type) return;
+  var n = Number(CacheService.getScriptCache().get('echecs_' + type) || 0);
+  if (n >= LIMITES[type].essais) throw new Error(LIMITES[type].message);
+}
+
+function compterEchec_(type) {
+  var cache = CacheService.getScriptCache();
+  var n = Number(cache.get('echecs_' + type) || 0) + 1;
+  cache.put('echecs_' + type, String(n), LIMITES[type].minutes * 60);
 }
 
 /** Crée un Google Sheet avec l'export (alternative au téléchargement Excel). */
@@ -143,7 +185,7 @@ function installer() {
       ['Réglage', 'Valeur', 'Explication'],
       ['heureAuto', '14:00', "Heure de départ mise automatiquement quand quelqu'un oublie de pointer sa fin de service"],
       ['joursFermes', '1', 'Jours de fermeture (0 = dimanche, 1 = lundi, ... 6 = samedi), séparés par des virgules'],
-      ['motDePasse', 'maestro', "Mot de passe de l'espace gérant (à changer !)"]
+      ['motDePasse', hacher_('maestro'), "Mot de passe de l'espace gérant (haché). À changer dans l'espace gérant → Réglages."]
     ]);
     r.getRange(1, 1, 4, 3).setNumberFormat('@');
     styliserEntete_(r, 3);
@@ -152,15 +194,17 @@ function installer() {
 
   // L'équipe de départ. Les codes sont tirés au hasard ici, et pas écrits dans le code
   // (qui est public sur GitHub). On les retrouve dans l'onglet « Salariés ».
-  var db = lire_();
+  var db = lire_(), enClair;
   if (!db.salaries.length) {
     var codes = {};
+    enClair = [];
     EQUIPE_DE_DEPART.forEach(function (nom, i) {
       var code;
       do { code = String(1000 + Math.floor(Math.random() * 9000)); } while (codes[code]);
       codes[code] = true;
+      enClair.push(nom + ' : ' + code);
       db.salaries.push({
-        id: 's' + (i + 1), nom: nom, code: code, contrat: 35, actif: true,
+        id: 's' + (i + 1), nom: nom, code: hacher_(code), contrat: 35, actif: true,
         entree: Utilities.formatDate(new Date(), FUSEAU, 'yyyy-MM-dd')
       });
     });
@@ -177,7 +221,8 @@ function installer() {
   });
   ScriptApp.newTrigger('clotureNocturne').timeBased().everyDays(1).atHour(5).nearMinute(15).inTimezone(FUSEAU).create();
 
-  Logger.log('Installation terminée. Codes des salariés : voir l’onglet « Salariés ». Mot de passe gérant : maestro');
+  // Les codes sont hachés dans le Google Sheet : ce journal est le seul endroit où ils apparaissent en clair.
+  Logger.log('Installation terminée. Mot de passe gérant : maestro (à changer). Codes : ' + (enClair || []).join(' · '));
 }
 
 /* ---------- Lecture / écriture du Google Sheet ---------- */
@@ -214,6 +259,7 @@ function lireTable_(cle) {
 function ecrireTable_(cle, lignes) {
   var t = TABLES[cle];
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(t.feuille);
+  sh.getRange(1, 1, 1, t.cols.length).setValues([t.entetes]);
   var ancien = sh.getLastRow() - 1;
   if (ancien > 0) sh.getRange(2, 1, ancien, t.cols.length).clearContent();
   if (!lignes.length) return;

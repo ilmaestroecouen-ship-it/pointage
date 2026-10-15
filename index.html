@@ -805,14 +805,14 @@ function ongletSalaries() {
   const sal = S.data.salaries;
   return `
   <div class="entete">
-    <div><h1 class="titre">Salariés</h1><p class="sous">Chaque salarié pointe avec son code à 4 chiffres. Gardez-les confidentiels.</p></div>
+    <div><h1 class="titre">Salariés</h1><p class="sous">Chaque salarié pointe avec son code à 4 chiffres. Les codes sont chiffrés et ne s'affichent plus : pour un code oublié, faites « Modifier » puis « Générer ».</p></div>
     <button class="btn" data-a="nouveauSal">+ Ajouter un salarié</button>
   </div>
   <div class="carte tableau"><table>
     <thead><tr><th>Nom</th><th>Code</th><th>Contrat</th><th>Depuis le</th><th>Statut</th><th></th></tr></thead>
     <tbody>${sal.map(s => `<tr class="${s.actif ? '' : 'inactif'}">
       <td class="nom-sal">${esc(s.nom)}</td>
-      <td class="code-sal">${esc(s.code)}</td>
+      <td class="code-sal">${s.aCode ? '••••' : '<span class="muet" style="font-size:15px;letter-spacing:0">aucun</span>'}</td>
       <td class="num">${s.contrat} h / semaine</td>
       <td class="num">${s.entree ? dateCourte(s.entree) : ''}</td>
       <td>${s.actif ? '<span class="pill encours">Actif</span>' : '<span class="pill">Parti</span>'}</td>
@@ -834,7 +834,7 @@ function ongletReglages() {
     </div>
     <h3 style="margin-top:10px">Mot de passe gérant</h3>
     <div class="deux">
-      <label class="champ">Nouveau mot de passe<input type="password" id="r-mdp1" autocomplete="new-password"></label>
+      <label class="champ">Nouveau mot de passe (8 caractères minimum)<input type="password" id="r-mdp1" autocomplete="new-password"></label>
       <label class="champ">Confirmer<input type="password" id="r-mdp2" autocomplete="new-password"></label>
     </div>
     <div><button type="submit" class="btn">Enregistrer les réglages</button></div>
@@ -872,8 +872,8 @@ function vueModal() {
       <h3>${s.id ? 'Modifier le salarié' : 'Nouveau salarié'}</h3>
       <label class="champ">Prénom et nom<input id="m-nom" value="${esc(s.nom || '')}" placeholder="Ex : Marco Rossi"></label>
       <div class="deux">
-        <label class="champ">Code (4 chiffres)
-          <span style="display:flex;gap:8px"><input id="m-code" inputmode="numeric" maxlength="4" value="${esc(s.code || '')}"><button class="btn sec" data-a="genererCode" type="button">Générer</button></span></label>
+        <label class="champ">${s.id ? 'Nouveau code (vide = inchangé)' : 'Code (4 chiffres)'}
+          <span style="display:flex;gap:8px"><input id="m-code" inputmode="numeric" maxlength="4" value="${esc(s.code || '')}" placeholder="${s.id ? '••••' : ''}"><button class="btn sec" data-a="genererCode" type="button">Générer</button></span></label>
         <label class="champ">Heures contrat / semaine<input id="m-contrat" type="number" min="1" max="48" step="0.5" value="${s.contrat || 35}"></label>
       </div>
       <label class="case"><input type="checkbox" id="m-actif" ${s.actif !== false ? 'checked' : ''}> Toujours dans l'équipe (décocher s'il est parti)</label>
@@ -882,6 +882,11 @@ function vueModal() {
         <button class="btn sec" data-a="fermerModal">Annuler</button>
         <button class="btn" data-a="enregistrerSal">Enregistrer</button>
       </div>`;
+  } else if (m.type === 'codeInfo') {
+    corps = `<h3>Code de ${esc(m.nom)}</h3>
+      <div class="code-sal" style="font-size:56px;text-align:center;margin:6px 0">${esc(m.code)}</div>
+      <p>Notez-le et donnez-le au salarié. Il est chiffré et <b>ne sera plus affiché</b>.</p>
+      <div class="actions"><div class="espace"></div><button class="btn" data-a="fermerModal">C'est noté</button></div>`;
   } else if (m.type === 'lien') {
     corps = `<h3>Export prêt</h3>
       <p>Le fichier Google Sheets a été créé dans votre Google Drive.</p>
@@ -1076,8 +1081,9 @@ const A = {
   editSal(_, el) { const s = S.data.salaries.find(x => x.id === el.dataset.id); S.modal = { type: 'salarie', s: Object.assign({}, s) }; render(); },
   genererCode() { document.getElementById('m-code').value = codeLibre(); },
   enregistrerSal() {
-    const s = S.modal.s;
-    gerant('enregistrerSalarie', { salarie: { id: s.id, entree: s.entree, nom: val('m-nom'), code: val('m-code'), contrat: val('m-contrat'), actif: document.getElementById('m-actif').checked } });
+    const s = S.modal.s, nom = val('m-nom'), code = val('m-code').trim();
+    gerant('enregistrerSalarie', { salarie: { id: s.id, entree: s.entree, nom, code, contrat: val('m-contrat'), actif: document.getElementById('m-actif').checked } })
+      .then(ok => { if (ok && code) { S.modal = { type: 'codeInfo', nom, code }; render(); } });
   },
   traiter(v, el) { gerant('traiterMessage', { id: el.dataset.id, traite: v === '1' }, v === '1' ? 'Message traité' : 'Message rouvert'); },
   enregistrerReglages() {
@@ -1100,10 +1106,12 @@ const A = {
   reinitDemo() { if (confirm('Effacer les données de démo et recommencer ?')) { window.DEMO.reset(); A.actualiser(); } }
 };
 
+/** Code à 4 chiffres au hasard, en évitant les codes trop faciles (1111, 1234…). Le serveur vérifie qu'il est libre. */
 function codeLibre() {
-  const pris = new Set(S.data.salaries.filter(s => s.actif).map(s => s.code));
+  const facile = c => /^(\d){3}$/.test(c) || '0123456789'.includes(c) || '9876543210'.includes(c);
+  const tirage = () => { const t = new Uint32Array(1); crypto.getRandomValues(t); return String(1000 + t[0] % 9000); };
   let c;
-  do { c = String(1000 + Math.floor(Math.random() * 9000)); } while (pris.has(c));
+  do { c = tirage(); } while (facile(c));
   return c;
 }
 

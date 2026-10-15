@@ -47,6 +47,29 @@ var Core = (function () {
 
   function erreur(message) { throw new Error(message); }
 
+  /** Erreur d'accès (mauvais code / mot de passe) : comptée par Code.gs pour bloquer les essais en série. */
+  function erreurAcces(type, message) {
+    var e = new Error(message);
+    e.acces = type;
+    throw e;
+  }
+
+  /* ---------- Codes et mot de passe hachés ---------- */
+
+  // Remplacé par un vrai hachage SHA-256 salé dans Code.gs ; cette version ne sert qu'à la démo.
+  var hacher = function (secret) { return 'demo$' + secret; };
+  function definirHachage(f) { hacher = f; }
+
+  function estHache(v) { return /^(h1|demo)\$/.test(String(v || '')); }
+
+  /** Compare une saisie à la valeur stockée (hachée, ou en clair pour les anciennes données). */
+  function verifierSecret(saisi, stocke) {
+    saisi = String(saisi || ''); stocke = String(stocke || '');
+    if (!saisi || !stocke) return false;
+    if (!estHache(stocke)) return saisi === stocke;
+    return hacher(saisi, stocke) === stocke;
+  }
+
   function verifierHeure(h, champ) {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(h || ''))) erreur(champ + ' : heure invalide (format 10:30).');
   }
@@ -64,7 +87,7 @@ var Core = (function () {
     if (!code) return null;
     for (var i = 0; i < db.salaries.length; i++) {
       var s = db.salaries[i];
-      if (s.actif && String(s.code) === code) return s;
+      if (s.actif && verifierSecret(code, s.code)) return s;
     }
     return null;
   }
@@ -108,9 +131,11 @@ var Core = (function () {
 
   /* ---------- Tablette (salariés) ---------- */
 
+  var CODE_INCONNU = 'Code inconnu. Vérifie ton code et recommence.';
+
   function identifier(db, now, args) {
     var s = salarieParCode(db, args.code);
-    if (!s) erreur('Code inconnu. Vérifie ton code et recommence.');
+    if (!s) erreurAcces('code', CODE_INCONNU);
     var jour = journeeDeService(now);
     var ouvert = pointageEnCours(db, s.id);
     return {
@@ -125,7 +150,7 @@ var Core = (function () {
 
   function pointer(db, now, args) {
     var s = salarieParCode(db, args.code);
-    if (!s) erreur('Code inconnu. Vérifie ton code et recommence.');
+    if (!s) erreurAcces('code', CODE_INCONNU);
     var jour = journeeDeService(now);
     var ouvert = pointageEnCours(db, s.id);
     var limite = heureAuto(db);
@@ -160,7 +185,7 @@ var Core = (function () {
 
   function signaler(db, now, args) {
     var s = salarieParCode(db, args.code);
-    if (!s) erreur('Code inconnu.');
+    if (!s) erreurAcces('code', CODE_INCONNU);
     var texte = String(args.texte || '').trim();
     if (texte.length < 3) erreur('Écris ton message avant de l’envoyer.');
     db.messages.push({
@@ -173,12 +198,15 @@ var Core = (function () {
   /* ---------- Espace gérant ---------- */
 
   function verifierMdp(db, mdp) {
-    if (!mdp || String(mdp) !== String(db.reglages.motDePasse)) erreur('Mot de passe incorrect.');
+    if (!verifierSecret(mdp, db.reglages.motDePasse)) erreurAcces('mdp', 'Mot de passe incorrect.');
   }
 
   function charger(db, now) {
     return {
-      salaries: db.salaries,
+      // Les codes ne quittent jamais le serveur
+      salaries: db.salaries.map(function (s) {
+        return { id: s.id, nom: s.nom, contrat: s.contrat, actif: s.actif, entree: s.entree, aCode: !!s.code };
+      }),
       pointages: db.pointages,
       absences: db.absences,
       messages: db.messages,
@@ -233,19 +261,23 @@ var Core = (function () {
     var code = String(x.code || '').trim();
     var contrat = Number(x.contrat) || 35;
     if (!nom) erreur('Le nom est obligatoire.');
-    if (!/^\d{4}$/.test(code)) erreur('Le code doit contenir exactement 4 chiffres.');
-    var doublon = db.salaries.filter(function (s) { return s.code === code && s.id !== x.id && s.actif; })[0];
-    if (doublon && x.actif !== false) erreur('Ce code est déjà utilisé par ' + doublon.nom + '.');
+    if (!x.id && !code) erreur('Choisissez un code pour ce salarié.');
+    if (code) {
+      if (!/^\d{4}$/.test(code)) erreur('Le code doit contenir exactement 4 chiffres.');
+      var doublon = db.salaries.filter(function (s) { return s.id !== x.id && s.actif && verifierSecret(code, s.code); })[0];
+      if (doublon) erreur('Ce code est déjà utilisé par ' + doublon.nom + '. Générez-en un autre.');
+    }
 
     if (x.id) {
       var s = salarieParId(db, x.id);
       if (!s) erreur('Salarié introuvable.');
-      s.nom = nom; s.code = code; s.contrat = contrat; s.actif = x.actif !== false;
+      s.nom = nom; s.contrat = contrat; s.actif = x.actif !== false;
+      if (code) s.code = hacher(code);
       // Garder le nom à jour dans les pointages (lisibilité du Google Sheet)
       db.pointages.forEach(function (p) { if (p.sid === s.id) p.nom = nom; });
       db.absences.forEach(function (a) { if (a.sid === s.id) a.nom = nom; });
     } else {
-      db.salaries.push({ id: nouvelId(), nom: nom, code: code, contrat: contrat, actif: x.actif !== false, entree: x.entree || now.date });
+      db.salaries.push({ id: nouvelId(), nom: nom, code: hacher(code), contrat: contrat, actif: x.actif !== false, entree: x.entree || now.date });
     }
   }
 
@@ -260,8 +292,8 @@ var Core = (function () {
       db.reglages.joursFermes = r.joursFermes.map(Number).filter(function (j) { return j >= 0 && j <= 6; });
     }
     if (r.nouveauMdp) {
-      if (String(r.nouveauMdp).length < 4) erreur('Le mot de passe doit faire au moins 4 caractères.');
-      db.reglages.motDePasse = String(r.nouveauMdp);
+      if (String(r.nouveauMdp).length < 8) erreur('Le mot de passe doit faire au moins 8 caractères.');
+      db.reglages.motDePasse = hacher(String(r.nouveauMdp));
     }
   }
 
@@ -296,8 +328,13 @@ var Core = (function () {
     erreur('Action inconnue : ' + nom);
   }
 
+  /** 'code' pour les actions de la tablette, 'mdp' pour celles du gérant. */
+  function typeAcces(nom) { return PUBLIC[nom] ? 'code' : GERANT[nom] ? 'mdp' : null; }
+
   return {
     executer: executer,
+    typeAcces: typeAcces,
+    definirHachage: definirHachage,
     verifierMdp: verifierMdp,
     cloturer: cloturer,
     duree: duree,
